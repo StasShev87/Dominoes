@@ -38,7 +38,7 @@ The test seed is selected once by simulating the engine and is then hard-coded, 
 
 ## Error handling and diagnostics
 
-Each Playwright test records `pageerror`, console errors, failed network requests, and HTTP responses with status `>= 500`. Assertions include collected diagnostics on failure.
+Each Playwright test records `pageerror`, console errors, unexpected failed network requests, and HTTP responses with status `>= 500`. Next.js client navigation may cancel an obsolete `_rsc` GET with `net::ERR_ABORTED`; that specific cancellation is ignored because it has no server response and is expected router behavior. Assertions include collected diagnostics on failure.
 
 The E2E flow uses visible roles and labels for user interactions. Network response bodies are inspected only to verify authoritative command events and AI settlement that the UI cannot expose directly. Tests must not add production-only selectors or test-only application behavior unless the existing accessible surface proves insufficient.
 

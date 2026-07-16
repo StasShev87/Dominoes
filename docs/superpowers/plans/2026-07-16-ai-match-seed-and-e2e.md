@@ -14,7 +14,7 @@
 - Normalized seeds are deterministic integers in `0..2_147_483_646`.
 - Pass is exercised only when the UI exposes it as a legal action.
 - The gameplay E2E uses match seed `205` and action PRNG seed `0x5eed1234`.
-- Browser tests fail on page errors, console errors, request failures, or HTTP responses with status `>= 500`.
+- Browser tests fail on page errors, console errors, unexpected request failures, or HTTP responses with status `>= 500`; expected Next.js `_rsc` navigation cancellations are excluded.
 - Production UI must not expose test-only seed controls.
 
 ---

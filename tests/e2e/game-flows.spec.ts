@@ -25,7 +25,12 @@ function captureDiagnostics(page: Page): BrowserDiagnostics {
     if (message.type() === "error") errors.push(`console: ${message.text()}`);
   });
   page.on("requestfailed", (request) => {
-    errors.push(`requestfailed: ${request.method()} ${request.url()} ${request.failure()?.errorText ?? "unknown"}`);
+    const failure = request.failure()?.errorText ?? "unknown";
+    const expectedNextNavigationAbort = request.method() === "GET" &&
+      request.url().includes("_rsc=") && failure === "net::ERR_ABORTED";
+    if (!expectedNextNavigationAbort) {
+      errors.push(`requestfailed: ${request.method()} ${request.url()} ${failure}`);
+    }
   });
   page.on("response", (response) => {
     if (response.status() >= 500) {
