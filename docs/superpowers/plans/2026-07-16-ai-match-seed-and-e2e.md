@@ -13,7 +13,7 @@
 - Keep the Prisma `Match.seed` column as PostgreSQL `INTEGER`; no migration is added.
 - Normalized seeds are deterministic integers in `0..2_147_483_646`.
 - Pass is exercised only when the UI exposes it as a legal action.
-- The gameplay E2E uses match seed `18339` and action PRNG seed `0x5eed1234`.
+- The gameplay E2E uses match seed `205` and action PRNG seed `0x5eed1234`.
 - Browser tests fail on page errors, console errors, request failures, or HTTP responses with status `>= 500`.
 - Production UI must not expose test-only seed controls.
 
@@ -163,7 +163,7 @@ function deterministicRandom(seed: number): () => number {
 
 Create a test that starts diagnostics before `page.goto("/en")`, asserts both lobby buttons are visible, and then calls `diagnostics.assertClean()`.
 
-Update the existing AI launch test to call `await forceAiSeed(page, 18_339)`, start diagnostics, launch through `Play the computer`, reload the exact game URL, assert `Your hand` is visible after reload, and assert diagnostics are clean.
+Keep the existing AI launch test on the normal `Date.now()` request so it covers the overflow regression. Start diagnostics, launch through `Play the computer`, reload the exact game URL, assert `Your hand` is visible after reload, and assert diagnostics are clean. Use `forceAiSeed` only for deterministic gameplay.
 
 - [ ] **Step 3: Add the deterministic legal-action helper**
 
@@ -215,7 +215,7 @@ async function performDeterministicAction(page: Page, random: () => number): Pro
 
 - [ ] **Step 4: Add the fixed-seed AI/pass scenario**
 
-Use seed `18_339` and PRNG seed `0x5eed1234`. Start the match through the lobby, then execute at most 12 human commands. For every command response:
+Use seed `205` and PRNG seed `0x5eed1234`. Start the match through the lobby, then execute at most 12 human commands. For every command response:
 
 ```ts
 expect(body.snapshot.status === "FINISHED" || body.snapshot.currentSeat === body.snapshot.seat).toBe(true);
