@@ -2,6 +2,12 @@
 
 Draw Dominoes web MVP: a responsive Next.js client, an authoritative NestJS API, PostgreSQL/Prisma, Supabase Auth, and Socket.IO. It includes Ukrainian, English, and Russian interfaces, AI play, and private games via one-time links.
 
+## Documentation
+
+- [Project guide, architecture, stack, conventions, and roadmap](docs/PROJECT.md)
+- [Current game rules](docs/GAME_RULES.md)
+- [Operational runbooks](docs/runbooks)
+
 ## Local development
 
 Node.js 24, pnpm 11, and Docker are required.
