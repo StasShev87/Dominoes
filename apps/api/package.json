@@ -1,0 +1,40 @@
+{
+  "name": "@dominoes/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "db:validate": "prisma validate --schema prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dominoes/contracts": "workspace:*",
+    "@dominoes/game-engine": "workspace:*",
+    "@nestjs/common": "latest",
+    "@nestjs/core": "latest",
+    "@nestjs/platform-express": "latest",
+    "@nestjs/platform-socket.io": "latest",
+    "@nestjs/websockets": "latest",
+    "@prisma/client": "6.19.0",
+    "helmet": "latest",
+    "jose": "latest",
+    "reflect-metadata": "latest",
+    "rxjs": "latest",
+    "socket.io": "latest"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "latest",
+    "@types/express": "latest",
+    "@types/supertest": "latest",
+    "prisma": "6.19.0",
+    "socket.io-client": "latest",
+    "supertest": "latest",
+    "tsx": "latest"
+  }
+}

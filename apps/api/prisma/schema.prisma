@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum IdentityProvider {
+  SUPABASE_EMAIL
+  SUPABASE_PHONE
+  TELEGRAM
+}
+
+enum ParticipantKind {
+  ACCOUNT
+  GUEST
+  AI
+}
+
+enum MatchMode {
+  AI
+  PRIVATE
+}
+
+enum MatchStatus {
+  WAITING
+  ACTIVE
+  FINISHED
+  ARCHIVED
+}
+
+enum InviteStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+}
+
+model Account {
+  id         String            @id @default(uuid()) @db.Uuid
+  createdAt  DateTime          @default(now()) @db.Timestamptz(3)
+  deletedAt  DateTime?         @db.Timestamptz(3)
+  identities AccountIdentity[]
+  profile    Profile?
+  seats      MatchSeat[]
+  results    MatchResult[]
+}
+
+model AccountIdentity {
+  id        String           @id @default(uuid()) @db.Uuid
+  accountId String           @db.Uuid
+  provider  IdentityProvider
+  subject   String
+  verifiedAt DateTime        @db.Timestamptz(3)
+  createdAt DateTime         @default(now()) @db.Timestamptz(3)
+  account   Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@index([accountId])
+}
+
+model Profile {
+  accountId          String   @id @db.Uuid
+  username           String   @db.VarChar(20)
+  usernameNormalized String   @unique @db.VarChar(20)
+  locale             String   @default("uk") @db.VarChar(2)
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+  account            Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model GuestSession {
+  id        String      @id @default(uuid()) @db.Uuid
+  tokenHash String      @unique @db.Char(64)
+  name      String      @db.VarChar(20)
+  expiresAt DateTime    @db.Timestamptz(3)
+  claimedAt DateTime?   @db.Timestamptz(3)
+  createdAt DateTime    @default(now()) @db.Timestamptz(3)
+  seats     MatchSeat[]
+}
+
+model Match {
+  id             String       @id @default(uuid()) @db.Uuid
+  mode           MatchMode
+  status         MatchStatus  @default(WAITING)
+  targetScore    Int          @default(100)
+  version        Int          @default(0)
+  seed           Int
+  state          Json
+  lastActivityAt DateTime     @default(now()) @db.Timestamptz(3)
+  finishedAt     DateTime?    @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  seats          MatchSeat[]
+  commands       GameCommand[]
+  events         GameEvent[]
+  invites        Invite[]
+  results        MatchResult[]
+
+  @@index([status, lastActivityAt])
+}
+
+model MatchSeat {
+  id             String          @id @default(uuid()) @db.Uuid
+  matchId        String          @db.Uuid
+  seat           Int
+  participantKind ParticipantKind
+  accountId      String?         @db.Uuid
+  guestSessionId String?         @db.Uuid
+  joinedAt       DateTime        @default(now()) @db.Timestamptz(3)
+  match          Match           @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  account        Account?        @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  guestSession   GuestSession?   @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, seat])
+  @@index([accountId])
+  @@index([guestSessionId])
+}
+
+model GameCommand {
+  id              String   @id @default(uuid()) @db.Uuid
+  matchId         String   @db.Uuid
+  commandId       String   @db.Uuid
+  expectedVersion Int
+  principalKey    String   @db.VarChar(160)
+  payload         Json
+  result          Json
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  match           Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, commandId])
+}
+
+model GameEvent {
+  id        BigInt   @id @default(autoincrement())
+  matchId   String   @db.Uuid
+  sequence  Int
+  type      String   @db.VarChar(40)
+  payload   Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, sequence])
+}
+
+model Invite {
+  id        String       @id @default(uuid()) @db.Uuid
+  matchId   String       @db.Uuid
+  tokenHash String       @unique @db.Char(64)
+  status    InviteStatus @default(ACTIVE)
+  expiresAt DateTime     @db.Timestamptz(3)
+  usedAt    DateTime?    @db.Timestamptz(3)
+  createdAt DateTime     @default(now()) @db.Timestamptz(3)
+  match     Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId])
+}
+
+model MatchResult {
+  id           String          @id @default(uuid()) @db.Uuid
+  matchId      String          @db.Uuid
+  accountId    String?         @db.Uuid
+  participantKind ParticipantKind
+  seat         Int
+  score        Int
+  outcome      String          @db.VarChar(20)
+  finishReason String          @db.VarChar(30)
+  createdAt    DateTime        @default(now()) @db.Timestamptz(3)
+  match        Match           @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  account      Account?        @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, seat])
+  @@index([accountId, createdAt])
+}
+

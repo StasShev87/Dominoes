@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: dominoes-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    healthCheckPath: /v1/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: dominoes-db, property: connectionString }
+      - key: GUEST_SESSION_SECRET
+        generateValue: true
+      - key: WEB_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_AUDIENCE
+        value: authenticated
+databases:
+  - name: dominoes-db
+    plan: starter
+    databaseName: dominoes
+    user: dominoes

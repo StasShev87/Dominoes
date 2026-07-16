@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: dominoes
+      POSTGRES_USER: dominoes
+      POSTGRES_PASSWORD: dominoes
+    ports: ["54322:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dominoes"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes: ["dominoes-data:/var/lib/postgresql/data"]
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DATABASE_URL: postgresql://dominoes:dominoes@postgres:5432/dominoes
+      WEB_ORIGINS: http://localhost:3000
+      GUEST_SESSION_SECRET: local-compose-secret-change-before-production
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_JWT_AUDIENCE: authenticated
+    ports: ["4000:4000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+volumes:
+  dominoes-data:
