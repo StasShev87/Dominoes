@@ -1,23 +1,23 @@
 # Dominoes
 
-Веб-MVP Draw Dominoes: адаптивный Next.js-клиент, авторитетный NestJS API, PostgreSQL/Prisma, Supabase Auth и Socket.IO. Есть украинский, английский и русский интерфейсы, AI и приватная игра по одноразовой ссылке.
+Draw Dominoes web MVP: a responsive Next.js client, an authoritative NestJS API, PostgreSQL/Prisma, Supabase Auth, and Socket.IO. It includes Ukrainian, English, and Russian interfaces, AI play, and private games via one-time links.
 
-## Локальный запуск
+## Local development
 
-Нужны Node.js 24, pnpm 11 и Docker.
+Node.js 24, pnpm 11, and Docker are required.
 
-1. Скопируйте `.env.example` в `.env` и заполните Supabase-параметры.
-2. Запустите PostgreSQL и API: `docker compose up --build`.
-3. В другом терминале: `pnpm install --frozen-lockfile`, затем `pnpm --filter @dominoes/web dev`.
-4. Откройте `http://localhost:3000/uk`.
+1. Copy `.env.example` to `.env` and fill in the Supabase configuration.
+2. Start PostgreSQL and the API: `docker compose up --build`.
+3. In another terminal, run `pnpm install --frozen-lockfile`, followed by `pnpm --filter @dominoes/web dev`.
+4. Open `http://localhost:3000/uk`.
 
-Без Supabase локальный web использует dev-principal; в production этот механизм отключён.
+Without Supabase, the local web app uses a development principal; this mechanism is disabled in production.
 
-## Проверки и deployment
+## Verification and deployment
 
-- `pnpm check` — типы, тесты и production build.
+- `pnpm check` — types, tests, and the production build.
 - `pnpm --filter @dominoes/api db:validate` — Prisma schema.
-- `pnpm --filter @dominoes/api db:deploy` — миграции.
-- `k6 run tests/load/ai-match.js` — нагрузочный сценарий (запускать против отдельного окружения).
+- `pnpm --filter @dominoes/api db:deploy` — migrations.
+- `k6 run tests/load/ai-match.js` — load test scenario (run it against a dedicated environment).
 
-API/PostgreSQL описаны в `render.yaml`, web — в `vercel.json`. В production обязательны `DATABASE_URL`, `SUPABASE_URL`, `GUEST_SESSION_SECRET`, `WEB_ORIGINS` и соответствующие `NEXT_PUBLIC_*` переменные. Операционные процедуры: [docs/runbooks](docs/runbooks).
+The API and PostgreSQL are defined in `render.yaml`, and the web app is defined in `vercel.json`. Production requires `DATABASE_URL`, `SUPABASE_URL`, `GUEST_SESSION_SECRET`, `WEB_ORIGINS`, and the corresponding `NEXT_PUBLIC_*` variables. Operational procedures are available in [docs/runbooks](docs/runbooks).

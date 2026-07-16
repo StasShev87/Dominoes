@@ -1,7 +1,7 @@
 # Incident response
 
-1. Зафиксировать время, endpoints и match IDs, не копируя JWT или invite tokens.
-2. При утечке сменить `GUEST_SESSION_SECRET`, Supabase keys и отозвать sessions.
-3. При повреждении состояния остановить создание матчей и сделать PostgreSQL snapshot; event log вручную не редактировать.
-4. Восстановить последний проверенный image и проверить health, миграции и синтетический матч.
-5. Оформить причину, масштаб, исправление и preventive test без персональных данных.
+1. Record the time, endpoints, and match IDs without copying JWTs or invite tokens.
+2. If credentials are exposed, rotate `GUEST_SESSION_SECRET` and the Supabase keys, then revoke sessions.
+3. If state is corrupted, stop match creation and take a PostgreSQL snapshot; do not edit the event log manually.
+4. Restore the latest verified image and check health, migrations, and a synthetic match.
+5. Document the cause, scope, fix, and preventive test without including personal data.

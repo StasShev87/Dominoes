@@ -1,9 +1,9 @@
 # Deployment runbook
 
-1. Выполнить `pnpm check`, Prisma validation и snapshot PostgreSQL.
-2. Развернуть API; startup-команда выполняет `prisma migrate deploy`.
-3. Проверить `/v1/health`, AI-матч, guest-cookie и Socket.IO `/matches`.
-4. Развернуть web с production API/Supabase URL.
-5. Проверить три локали, приватную ссылку во втором контексте и reconnect.
+1. Run `pnpm check`, validate the Prisma schema, and create a PostgreSQL snapshot.
+2. Deploy the API; the startup command runs `prisma migrate deploy`.
+3. Verify `/v1/health`, an AI match, the guest cookie, and the Socket.IO `/matches` namespace.
+4. Deploy the web app with the production API and Supabase URLs.
+5. Verify all three locales, a private link in a second client context, and reconnection.
 
-Rollback: вернуть предыдущие API image и web deployment. Destructive migrations выпускаются отдельным двухэтапным релизом.
+Rollback: restore the previous API image and web deployment. Release destructive migrations separately in two stages.

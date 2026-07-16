@@ -2,14 +2,14 @@
 
 ## Backup
 
-1. Создать encrypted provider snapshot и логически выгрузить БД: `pg_dump --format=custom --no-owner --file=dominoes.dump "$DATABASE_URL"`.
-2. Записать schema migration commit и checksum файла в защищённое хранилище.
-3. Не включать `.env`, JWT, guest cookies или invite URLs в архив.
+1. Create an encrypted provider snapshot and a logical database dump: `pg_dump --format=custom --no-owner --file=dominoes.dump "$DATABASE_URL"`.
+2. Record the schema migration commit and the file checksum in secure storage.
+3. Do not include `.env`, JWTs, guest cookies, or invite URLs in the archive.
 
 ## Restore drill
 
-1. Создать пустую изолированную PostgreSQL БД той же major-версии.
-2. Выполнить `pg_restore --clean --if-exists --no-owner --dbname="$RESTORE_DATABASE_URL" dominoes.dump`.
-3. Запустить `prisma migrate status`, health-check и чтение нескольких матчей/профилей.
-4. Сравнить количество строк ключевых таблиц и replay последнего завершённого матча.
-5. Удалить drill-БД и зафиксировать RPO/RTO. Проверку выполнять не реже раза в квартал.
+1. Create an empty, isolated PostgreSQL database with the same major version.
+2. Run `pg_restore --clean --if-exists --no-owner --dbname="$RESTORE_DATABASE_URL" dominoes.dump`.
+3. Run `prisma migrate status`, a health check, and reads of several matches and profiles.
+4. Compare the row counts of key tables and replay the most recently completed match.
+5. Delete the drill database and record the RPO/RTO. Perform this drill at least once per quarter.

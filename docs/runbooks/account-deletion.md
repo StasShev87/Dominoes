@@ -1,7 +1,7 @@
 # Account deletion
 
-1. Повторно аутентифицировать владельца.
-2. Установить `Account.deletedAt`, удалить Supabase identity и публичный `Profile`.
-3. Обезличить результаты, удалив username и identity links.
-4. Завершить/обезличить активные матчи и проверить отсутствие email, phone и username в БД и telemetry.
-5. Подтвердить завершение в срок privacy policy.
+1. Reauthenticate the account owner.
+2. Set `Account.deletedAt`, then delete the Supabase identity and public `Profile`.
+3. Anonymize results by removing the username and identity links.
+4. End or anonymize active matches and verify that the database and telemetry contain no email address, phone number, or username.
+5. Confirm completion within the timeframe specified by the privacy policy.
