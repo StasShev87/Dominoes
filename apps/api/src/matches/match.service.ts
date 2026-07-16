@@ -12,6 +12,8 @@ import {
   type PlayerView
 } from "@dominoes/game-engine";
 
+const POSTGRES_INT4_SEED_MODULUS = 2_147_483_647;
+
 export interface Principal {
   readonly kind: "ACCOUNT" | "GUEST";
   readonly id: string;
@@ -83,9 +85,10 @@ export class MatchService {
 
   async createAiMatch(owner: Principal, seed: number): Promise<{ matchId: string; snapshot: PlayerView }> {
     const matchId = randomUUID();
+    const normalizedSeed = normalizeSeed(seed);
     const match: StoredMatch = {
       id: matchId,
-      state: createMatch({ matchId, seed }),
+      state: createMatch({ matchId, seed: normalizedSeed }),
       seats: [owner, { kind: "AI", id: "medium" }],
       invite: null,
       processedCommands: new Map(),
@@ -102,9 +105,10 @@ export class MatchService {
   async createPrivateMatch(owner: Principal, seed: number): Promise<{ matchId: string; inviteToken: string }> {
     const matchId = randomUUID();
     const inviteToken = randomBytes(32).toString("hex");
+    const normalizedSeed = normalizeSeed(seed);
     await this.repository.create({
       id: matchId,
-      state: createMatch({ matchId, seed }),
+      state: createMatch({ matchId, seed: normalizedSeed }),
       seats: [owner, null],
       invite: {
         tokenHash: hashToken(inviteToken),
@@ -234,4 +238,10 @@ function samePrincipal(
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
+}
+
+function normalizeSeed(seed: number): number {
+  if (!Number.isFinite(seed)) return 0;
+  const integer = Math.trunc(seed);
+  return ((integer % POSTGRES_INT4_SEED_MODULUS) + POSTGRES_INT4_SEED_MODULUS) % POSTGRES_INT4_SEED_MODULUS;
 }

@@ -17,6 +17,25 @@ describe("MatchService", () => {
     expect(created.snapshot.legalActions.length).toBeGreaterThan(0);
   });
 
+  test("normalizes oversized seeds before creating AI and private matches", async () => {
+    const repository = new InMemoryMatchRepository();
+    const service = new MatchService(repository);
+    const oversizedSeed = 1_784_227_713_132;
+
+    const first = await service.createAiMatch(owner, oversizedSeed);
+    const second = await service.createAiMatch(owner, oversizedSeed);
+    const privateMatch = await service.createPrivateMatch(owner, -oversizedSeed);
+    const firstStored = await repository.get(first.matchId);
+    const secondStored = await repository.get(second.matchId);
+    const privateStored = await repository.get(privateMatch.matchId);
+
+    expect(firstStored!.state.seed).toBeGreaterThanOrEqual(0);
+    expect(firstStored!.state.seed).toBeLessThan(2_147_483_647);
+    expect(secondStored!.state.seed).toBe(firstStored!.state.seed);
+    expect(privateStored!.state.seed).toBeGreaterThanOrEqual(0);
+    expect(privateStored!.state.seed).toBeLessThan(2_147_483_647);
+  });
+
   test("creates a single-use private invite and gives each player a hidden view", async () => {
     const service = new MatchService(new InMemoryMatchRepository());
     const created = await service.createPrivateMatch(owner, 42);
