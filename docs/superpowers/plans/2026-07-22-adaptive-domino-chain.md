@@ -15,11 +15,46 @@
 - Non-doubles follow travel direction; doubles are perpendicular.
 - The layout must reflow from actual board width, including mobile sizes.
 - The board expands vertically instead of clipping an oversized chain.
-- Game rules, commands, persistence, scoring, and networking remain unchanged.
+- Game rules, command payloads, scoring, and networking remain unchanged; persisted placed tiles gain `moveNumber`.
+- Each placed tile has a zero-based `moveNumber` that resets every round; legacy stored chains are normalized when read.
 
 ---
 
-### Task 1: Authentic tile faces
+### Task 1: Persist round move numbers
+
+**Files:**
+- Modify: `packages/game-engine/src/index.ts`
+- Modify: `packages/game-engine/src/index.test.ts`
+- Modify: `packages/contracts/src/index.ts`
+- Modify: `packages/contracts/src/index.test.ts`
+- Modify: `apps/api/src/matches/prisma-match.repository.ts`
+- Modify: `apps/api/src/matches/prisma-match.repository.test.ts`
+
+**Interfaces:**
+- Produces: required `PlacedTile.moveNumber: number` in engine state and public views.
+- Preserves: existing command payloads and placement rules.
+
+- [ ] **Step 1: Write failing engine and contract tests**
+
+Assert the opening tile receives `moveNumber: 0`, later placements at either side receive increasing numbers, a new round restarts at zero, and the public schema accepts and returns the field.
+
+- [ ] **Step 2: Verify RED**
+
+Run the focused game-engine and contracts tests and confirm failures are caused by the missing field.
+
+- [ ] **Step 3: Implement move numbering**
+
+Assign `Math.max(-1, ...chain.map(tile => tile.moveNumber)) + 1` when a play command succeeds, copy the field in projections, and add a nonnegative integer to the contract schema and types.
+
+- [ ] **Step 4: Add and implement legacy normalization**
+
+Write a repository test for stored placed tiles lacking the field, then normalize them to stable zero-based values during hydration before parsing or exposing state.
+
+- [ ] **Step 5: Verify and commit**
+
+Run focused tests, then commit as `feat: track round move numbers`.
+
+### Task 2: Authentic tile faces
 
 **Files:**
 - Modify: `apps/web/src/components/domino-tile.tsx`
@@ -56,7 +91,7 @@ Expected: PASS.
 
 Commit: `feat: render authentic domino faces`
 
-### Task 2: Pure two-ended snake layout
+### Task 3: Pure two-ended snake layout
 
 **Files:**
 - Create: `apps/web/src/components/domino-chain-layout.ts`
@@ -96,7 +131,7 @@ Expected: PASS.
 
 Commit: `feat: calculate responsive domino snake layout`
 
-### Task 3: Responsive board rendering and copy
+### Task 4: Responsive board rendering and copy
 
 **Files:**
 - Modify: `apps/web/src/components/game-board.tsx`
@@ -135,7 +170,7 @@ Expected: PASS.
 
 Commit: `feat: render responsive two-ended domino chain`
 
-### Task 4: Regression and browser verification
+### Task 5: Regression and browser verification
 
 **Files:**
 - Modify: `tests/e2e/game-flows.spec.ts` only if stable semantic assertions are missing.

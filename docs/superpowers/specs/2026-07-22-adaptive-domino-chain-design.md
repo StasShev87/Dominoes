@@ -19,7 +19,9 @@ Make the game board resemble a real domino table. Tiles use authentic pip layout
 - The right branch turns downward after reaching the right boundary, then snakes between boundaries.
 - A non-double tile lies along the current direction of travel. A double lies perpendicular to that direction.
 - Adjacent tiles meet edge-to-edge. Turning segments reserve enough space for a perpendicular connector without overlap.
-- Placement uses the server-provided chain order; no game rules or command payloads change.
+- Every placed tile stores a zero-based `moveNumber`. It starts at `0` in each round and increases for every tile played at either end.
+- The tile with `moveNumber: 0` is the fixed visual origin. Sorting by `moveNumber` can reconstruct play order.
+- Game rules and command payloads do not change.
 
 ## Responsive layout
 
@@ -28,6 +30,12 @@ Make the game board resemble a real domino table. Tiles use authentic pip layout
 - The complete chain is vertically centered in the board while it fits within the board's minimum height.
 - If the chain is taller than the minimum board, the board expands to contain it. Normal page scrolling provides vertical access; the chain itself is not clipped.
 - A deterministic fallback width is used during initial render and tests before an observer measurement is available.
+
+## State compatibility
+
+- `moveNumber` is persisted as part of every placed tile and exposed through `PlayerView`.
+- Older stored round states without `moveNumber` are normalized on read by assigning stable numbers derived from available chain data, allowing existing matches to continue.
+- A new round resets the move sequence, so its opening tile always receives `moveNumber: 0`.
 
 ## Controls and localization
 
@@ -58,5 +66,5 @@ Make the game board resemble a real domino table. Tiles use authentic pip layout
 
 ## Out of scope
 
-- Game-engine rules, chain legality, scoring, networking, and persistence do not change.
+- Game-engine rules, chain legality, scoring, and command payloads do not change.
 - The layout does not allow manual panning, zooming, or tile dragging.
