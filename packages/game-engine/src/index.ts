@@ -13,6 +13,7 @@ export interface PlacedTile {
   readonly tile: Tile;
   readonly left: Pip;
   readonly right: Pip;
+  readonly moveNumber: number;
 }
 
 export interface RoundState {
@@ -219,7 +220,8 @@ function playTile(
 
   const hands = state.round.hands.map((tiles) => [...tiles]);
   hands[command.seat]!.splice(tileIndex, 1);
-  const placement = orientTile(state.round, tile, command.side);
+  const moveNumber = state.round.chain.reduce((highest, placed) => Math.max(highest, placed.moveNumber), -1) + 1;
+  const placement = orientTile(state.round, tile, command.side, moveNumber);
   const chain = command.side === "LEFT"
     ? [placement, ...state.round.chain]
     : [...state.round.chain, placement];
@@ -360,13 +362,13 @@ function legalSides(round: RoundState, tile: Tile): Side[] {
   return result;
 }
 
-function orientTile(round: RoundState, tile: Tile, side: Side): PlacedTile {
-  if (!round.openEnds) return { tile: copyTile(tile), left: tile.left, right: tile.right };
+function orientTile(round: RoundState, tile: Tile, side: Side, moveNumber: number): PlacedTile {
+  if (!round.openEnds) return { tile: copyTile(tile), left: tile.left, right: tile.right, moveNumber };
   const target = side === "LEFT" ? round.openEnds[0] : round.openEnds[1];
   const other = tile.left === target ? tile.right : tile.left;
   return side === "LEFT"
-    ? { tile: copyTile(tile), left: other, right: target }
-    : { tile: copyTile(tile), left: target, right: other };
+    ? { tile: copyTile(tile), left: other, right: target, moveNumber }
+    : { tile: copyTile(tile), left: target, right: other, moveNumber };
 }
 
 function matches(tile: Tile, pip: Pip): boolean {
@@ -415,5 +417,5 @@ function copyTile(tile: Tile): Tile {
 }
 
 function copyPlacedTile(placed: PlacedTile): PlacedTile {
-  return { tile: copyTile(placed.tile), left: placed.left, right: placed.right };
+  return { tile: copyTile(placed.tile), left: placed.left, right: placed.right, moveNumber: placed.moveNumber };
 }

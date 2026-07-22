@@ -3,11 +3,23 @@ import {
   ApiErrorSchema,
   CommandRequestSchema,
   CreateMatchRequestSchema,
+  PlayerViewSchema,
   ProfileSchema,
   UsernameSchema
 } from "./index.js";
 
 describe("public API contracts", () => {
+  test("preserves round move numbers on placed tiles", () => {
+    const view = PlayerViewSchema.parse({
+      matchId: "match-1", seat: 0, version: 1, status: "ACTIVE", scores: [0, 0], targetScore: 100,
+      winnerSeat: null, roundNumber: 1, currentSeat: 0, hand: [],
+      seats: [{ seat: 0, tileCount: 0 }, { seat: 1, tileCount: 0 }], boneyardCount: 0,
+      chain: [{ tile: { id: "1-2", left: 1, right: 2 }, left: 1, right: 2, moveNumber: 0 }],
+      openEnds: [1, 2], legalActions: []
+    });
+
+    expect(view.chain[0]?.moveNumber).toBe(0);
+  });
   test("normalizes a valid username", () => {
     expect(UsernameSchema.parse("Player_01")).toBe("player_01");
   });

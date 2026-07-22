@@ -127,7 +127,7 @@ export class PrismaMatchRepository implements MatchRepository {
 }
 
 function hydrate(match: MatchRecord): StoredMatch {
-  const state = match.state as unknown as MatchState;
+  const state = normalizeMatchState(match.state);
   const seats: StoredMatch["seats"] = Array.from({ length: state.scores.length }, () => null);
   for (const seat of match.seats) {
     seats[seat.seat] = seat.participantKind === ParticipantKind.AI
@@ -156,6 +156,22 @@ function hydrate(match: MatchRecord): StoredMatch {
     lastActivityAt: match.lastActivityAt.getTime(),
     persistedVersion: match.version
   };
+}
+
+export function normalizeMatchState(value: unknown): MatchState {
+  const state = value as MatchState;
+  const chain = state.round.chain as Array<MatchState["round"]["chain"][number] & { moveNumber?: number }>;
+  const highestStored = chain.reduce((highest, placed) =>
+    Number.isInteger(placed.moveNumber) && placed.moveNumber! >= 0 ? Math.max(highest, placed.moveNumber!) : highest, -1);
+  let nextMoveNumber = highestStored + 1;
+  const normalizedChain = chain.map((placed, index) => ({
+    ...placed,
+    moveNumber: Number.isInteger(placed.moveNumber) && placed.moveNumber! >= 0
+      ? placed.moveNumber!
+      : highestStored < 0 ? index : nextMoveNumber++
+  }));
+
+  return { ...state, round: { ...state.round, chain: normalizedChain } };
 }
 
 function seatRows(match: StoredMatch) {

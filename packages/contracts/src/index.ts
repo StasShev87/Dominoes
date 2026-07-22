@@ -77,7 +77,8 @@ export const TileSchema = z.object({
 export const PlacedTileSchema = z.object({
   tile: TileSchema,
   left: z.number().int().min(0).max(6),
-  right: z.number().int().min(0).max(6)
+  right: z.number().int().min(0).max(6),
+  moveNumber: z.number().int().nonnegative()
 }).strict();
 
 export const LegalActionSchema = z.discriminatedUnion("type", [
