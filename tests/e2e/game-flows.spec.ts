@@ -86,7 +86,7 @@ async function performDeterministicAction(page: Page, random: () => number): Pro
     await tile.click();
     const sidePicker = page.getByRole("group", { name: "Choose board side" });
     if (await sidePicker.isVisible()) {
-      const sideButtons = sidePicker.getByRole("button", { name: /^Play (left|right)$/ });
+      const sideButtons = sidePicker.getByRole("button", { name: /^Play at (beginning|end)$/ });
       const sideCount = await sideButtons.count();
       expect(sideCount).toBeGreaterThan(1);
       await sideButtons.nth(Math.floor(random() * sideCount)).click();
@@ -152,6 +152,17 @@ test("plays deterministic legal actions, passes, and observes the AI response", 
   expect(aiActed).toBe(true);
   expect(passed).toBe(true);
   await expect(page.getByRole("region", { name: "Your hand" })).toBeVisible();
+  const origin = page.locator('[data-move-number="0"]');
+  await expect(origin).toHaveAttribute("data-origin", "true");
+  await expect(origin.locator('[data-orientation="horizontal"]')).toBeVisible();
+  expect(await page.locator(".chain-tile").count()).toBeGreaterThan(1);
+  const boardBounds = await page.locator(".chain-scroll").evaluate((element) => ({
+    left: element.getBoundingClientRect().left,
+    right: element.getBoundingClientRect().right,
+    viewportWidth: document.documentElement.clientWidth
+  }));
+  expect(boardBounds.left).toBeGreaterThanOrEqual(0);
+  expect(boardBounds.right).toBeLessThanOrEqual(boardBounds.viewportWidth);
   diagnostics.assertClean();
 });
 
