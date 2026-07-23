@@ -5,6 +5,7 @@ export type DominoOrientation = "horizontal" | "vertical";
 
 export interface PositionedTile {
   readonly tile: PlacedTile;
+  readonly visualTile: PlacedTile["tile"];
   readonly x: number;
   readonly y: number;
   readonly width: number;
@@ -32,7 +33,7 @@ export function layoutDominoChain(chain: readonly PlacedTile[], containerWidth: 
   if (!chain.length) return { tiles: [], height: MIN_HEIGHT };
   const width = Math.max(containerWidth, LONG_SIDE + PADDING * 2);
   const originIndex = Math.max(0, chain.findIndex(({ moveNumber }) => moveNumber === 0));
-  const origin = rawTile(chain[originIndex]!, width / 2, 0, "horizontal");
+  const origin = rawTile(chain[originIndex]!, width / 2, 0, "horizontal", 1);
   const rawTiles = new Map<number, RawTile>([[originIndex, origin]]);
 
   placeBranch(chain, originIndex - 1, -1, origin, "left", width, rawTiles);
@@ -73,16 +74,19 @@ function placeBranch(
     const orientation = tileOrientation(tile, "horizontal");
     const dimensions = tileDimensions(orientation);
     const centerX = previous.centerX + horizontalDirection * (previous.width / 2 + dimensions.width / 2 + GAP);
-    const crossesBoundary = centerX - dimensions.width / 2 < PADDING || centerX + dimensions.width / 2 > width - PADDING;
+    const minCenterX = PADDING + dimensions.width / 2;
+    const maxCenterX = width - PADDING - dimensions.width / 2;
+    const horizontalCenterX = Math.min(maxCenterX, Math.max(minCenterX, centerX));
+    const crossesBoundary = centerX < minCenterX - GAP || centerX > maxCenterX + GAP;
     if (crossesBoundary) {
       const turnOrientation = tileOrientation(tile, "vertical");
       const turnDimensions = tileDimensions(turnOrientation);
       const turnCenterX = Math.min(width - PADDING - turnDimensions.width / 2, Math.max(PADDING + turnDimensions.width / 2, previous.centerX));
       const centerY = previous.centerY + verticalDirection * (previous.height / 2 + turnDimensions.height / 2 + GAP);
-      previous = rawTile(tile, turnCenterX, centerY, turnOrientation);
+      previous = rawTile(tile, turnCenterX, centerY, turnOrientation, flowDirection(verticalDirection, indexStep));
       horizontalDirection = horizontalDirection === -1 ? 1 : -1;
     } else {
-      previous = rawTile(tile, centerX, previous.centerY, orientation);
+      previous = rawTile(tile, horizontalCenterX, previous.centerY, orientation, flowDirection(horizontalDirection, indexStep));
     }
     output.set(index, previous);
   }
@@ -103,7 +107,18 @@ function rawTile(
   tile: PlacedTile,
   centerX: number,
   centerY: number,
-  orientation: DominoOrientation
+  orientation: DominoOrientation,
+  flowDirection: -1 | 1
 ): RawTile {
-  return { tile, centerX, centerY, orientation, ...tileDimensions(orientation) };
+  return { tile, visualTile: visuallyOrderTile(tile, flowDirection), centerX, centerY, orientation, ...tileDimensions(orientation) };
+}
+
+function visuallyOrderTile(tile: PlacedTile, flowDirection: -1 | 1): PlacedTile["tile"] {
+  return flowDirection === 1
+    ? { id: tile.tile.id, left: tile.left, right: tile.right }
+    : { id: tile.tile.id, left: tile.right, right: tile.left };
+}
+
+function flowDirection(direction: -1 | 1, indexStep: -1 | 1): -1 | 1 {
+  return direction === indexStep ? 1 : -1;
 }
