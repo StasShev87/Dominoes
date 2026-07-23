@@ -60,6 +60,14 @@ describe("layoutDominoChain", () => {
     expect(end.x).toBeGreaterThan(origin.x);
   });
 
+  test("places an opening double perpendicular to the future chain", () => {
+    const layout = layoutDominoChain([placed(0, true)], 600);
+    const origin = layout.tiles[0]!;
+
+    expect(origin.orientation).toBe("vertical");
+    expect(origin.x + origin.width / 2).toBe(300);
+  });
+
   test("turns the beginning upward and the end downward on a narrow board", () => {
     const chain = [
       placed(9), placed(7), placed(5), placed(3), placed(1), placed(0),
