@@ -25,11 +25,15 @@ interface TilePlacement {
   readonly height: number;
 }
 
-const DOUBLE_SIX_TILE_IDS = new Set(
+const DOUBLE_SIX_TILES: PlayerView["hand"] =
   Array.from({ length: 7 }, (_, left) =>
-    Array.from({ length: 7 - left }, (_, offset) => `${left}-${left + offset}`)
-  ).flat()
-);
+    Array.from({ length: 7 - left }, (_, offset) => ({
+      id: `${left}-${left + offset}`,
+      left,
+      right: left + offset
+    }))
+  ).flat();
+const DOUBLE_SIX_TILE_IDS = new Set(DOUBLE_SIX_TILES.map(({ id }) => id));
 
 function placed(moveNumber: number, left: number, right: number): PlacedTile {
   const low = Math.min(left, right) as PlacedTile["left"];
@@ -46,15 +50,25 @@ function chain(pips: number[], moves: number[]): PlacedTile[] {
   return moves.map((move, index) => placed(move, pips[index]!, pips[index + 1]!));
 }
 
-function remainingBoneyardCount(placedChain: PlacedTile[]): number {
+function remainingDoubleSixTiles(placedChain: PlacedTile[]): PlayerView["hand"] {
   const ids = placedChain.map(({ tile }) => tile.id);
   if (ids.some((id) => !DOUBLE_SIX_TILE_IDS.has(id)) || new Set(ids).size !== ids.length) {
     throw new Error("Visual fixtures must use unique physical tiles from a double-six set");
   }
-  return DOUBLE_SIX_TILE_IDS.size - ids.length;
+  return DOUBLE_SIX_TILES.filter(({ id }) => !ids.includes(id));
 }
 
 function view(matchId: string, placedChain: PlacedTile[]): PlayerView {
+  const remainingTiles = remainingDoubleSixTiles(placedChain);
+  const openEnds = placedChain.length
+    ? [placedChain[0]!.left, placedChain.at(-1)!.right] as const
+    : null;
+  const handTile = remainingTiles.find(({ left, right }) =>
+    !openEnds || (left !== openEnds[0] && left !== openEnds[1] && right !== openEnds[0] && right !== openEnds[1])
+  );
+  if (!handTile || remainingTiles.length < 2) {
+    throw new Error("Active visual fixtures must leave a unique non-playable hand tile and opponent tile");
+  }
   return {
     matchId,
     seat: 0,
@@ -65,14 +79,12 @@ function view(matchId: string, placedChain: PlacedTile[]): PlayerView {
     winnerSeat: null,
     roundNumber: 1,
     currentSeat: 0,
-    hand: [],
-    seats: [{ seat: 0, tileCount: 0 }, { seat: 1, tileCount: 0 }],
-    boneyardCount: remainingBoneyardCount(placedChain),
+    hand: [handTile],
+    seats: [{ seat: 0, tileCount: 1 }, { seat: 1, tileCount: 1 }],
+    boneyardCount: remainingTiles.length - 2,
     chain: placedChain,
-    openEnds: placedChain.length
-      ? [placedChain[0]!.left, placedChain.at(-1)!.right]
-      : null,
-    legalActions: []
+    openEnds,
+    legalActions: [{ type: "DRAW_TILE" }]
   };
 }
 
@@ -92,7 +104,9 @@ async function loadScenario(
       body: JSON.stringify(view(name, placedChain))
     })
   );
-  await page.goto(`/en/game/${name}`);
+  const baseURL = test.info().project.use.baseURL;
+  if (!baseURL) throw new Error("Visual proof requires a Playwright base URL");
+  await page.goto(new URL(`/en/game/${name}`, baseURL).toString());
   await page.addStyleTag({ content: ".chain-tile { transition: none !important; }" });
   await waitForResponsiveBoardLayout(page, placedChain.length);
 }
@@ -112,19 +126,24 @@ async function waitForResponsiveBoardLayout(page: Page, expectedTileCount: numbe
       height: bounds.height
     };
   }));
-  const first = await readPositions();
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const second = await readPositions();
-  expect(second).toEqual(first);
-
-  const layout = await page.locator(".chain-layout").evaluate((element) => {
+  const readLayout = () => page.locator(".chain-layout").evaluate((element) => {
     const bounds = element.getBoundingClientRect();
-    return { left: bounds.left, right: bounds.right };
+    return { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom };
   });
-  for (const placement of second) {
-    expect(placement.left).toBeGreaterThanOrEqual(layout.left - 0.5);
-    expect(placement.right).toBeLessThanOrEqual(layout.right + 0.5);
-  }
+  let previous: Awaited<ReturnType<typeof readPositions>> | undefined;
+  await expect.poll(async () => {
+    const current = await readPositions();
+    const layout = await readLayout();
+    const withinResponsiveBounds = current.every((placement) =>
+      placement.left >= layout.left - 0.5 &&
+      placement.right <= layout.right + 0.5 &&
+      placement.top >= layout.top - 0.5 &&
+      placement.bottom <= layout.bottom + 0.5
+    );
+    const settled = previous !== undefined && JSON.stringify(current) === JSON.stringify(previous);
+    previous = current;
+    return settled && withinResponsiveBounds;
+  }, { timeout: 5_000 }).toBe(true);
 }
 
 async function screenshotScenario(
@@ -292,12 +311,18 @@ async function assertNarrowFirstDoubleBranchIsTotal(page: Page): Promise<void> {
     };
   }));
   for (const placement of placements) {
-    expect(placement.transform).toMatch(/transform:\s*translate\([^)]*px,\s*[^)]*px\)/);
+    const match = placement.transform.match(/transform:\s*translate\(\s*([^\s,]+)px,\s*([^\s,)]+)px\s*\)/);
+    expect(match).not.toBeNull();
+    expect(placement.transform).not.toMatch(/NaN|undefined/);
+    const coordinates = [Number(match![1]), Number(match![2])];
+    expect(coordinates.every(Number.isFinite)).toBe(true);
     expect(Object.values(placement).filter((value) => typeof value === "number").every(Number.isFinite)).toBe(true);
     expect(placement.width).toBeGreaterThan(0);
     expect(placement.height).toBeGreaterThan(0);
     expect(placement.right).toBeGreaterThan(board!.x);
     expect(placement.left).toBeLessThan(board!.x + board!.width);
+    expect(placement.bottom).toBeGreaterThan(board!.y);
+    expect(placement.top).toBeLessThan(board!.y + board!.height);
   }
   expect(new Set(placements.map(({ left, top }) => `${left}:${top}`)).size).toBe(placements.length);
   for (let index = 0; index < placements.length; index += 1) {
@@ -328,11 +353,16 @@ test.beforeEach(() => {
   test.skip(test.info().project.name !== "desktop-chromium", "desktop visual proof");
 });
 
-test("captures a normal penultimate-tile turn", async ({ page }) => {
-  await assertNarrowFirstDoubleBranchIsTotal(page);
+test("captures a normal penultimate-tile turn", async ({ page, browser }) => {
   await screenshotScenario(page, "turn-penultimate", normal, "artifacts/domino-turn-penultimate.png", () =>
     assertMoveCorner(page, 3, 1)
   );
+  const narrowContext = await browser.newContext();
+  try {
+    await assertNarrowFirstDoubleBranchIsTotal(await narrowContext.newPage());
+  } finally {
+    await narrowContext.close();
+  }
 });
 
 test("captures rollback through a double", async ({ page }) => {
