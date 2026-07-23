@@ -24,7 +24,7 @@ const messages = {
     game: {
       you: "You", opponent: "Opponent", round: "Round", firstTo: "first to", tiles: "tiles",
       opening: "Play the opening tile", boneyard: "Boneyard", yourTurn: "Your turn",
-      thinking: "Opponent is thinking…", playLeft: "Play left", playRight: "Play right",
+      thinking: "Opponent is thinking…", playLeft: "Play at beginning", playRight: "Play at end",
       cancel: "Cancel", draw: "Draw a tile", pass: "Pass", claimForfeit: "Claim timeout win", score: "Match score",
       opponentHand: "Opponent hand", chain: "Domino chain", hand: "Your hand", chooseSide: "Choose board side",
       won: "You won", lost: "You lost", playAgain: "Back to lobby", unavailable: "The table is unavailable", preparing: "Preparing the table",
@@ -69,7 +69,7 @@ const messages = {
     game: {
       you: "Ви", opponent: "Суперник", round: "Раунд", firstTo: "до", tiles: "кісток",
       opening: "Зробіть перший хід", boneyard: "Базар", yourTurn: "Ваш хід",
-      thinking: "Суперник думає…", playLeft: "Покласти ліворуч", playRight: "Покласти праворуч",
+      thinking: "Суперник думає…", playLeft: "Покласти на початок", playRight: "Покласти в кінець",
       cancel: "Скасувати", draw: "Взяти кістку", pass: "Пас", claimForfeit: "Зарахувати технічну перемогу", score: "Рахунок матчу",
       opponentHand: "Рука суперника", chain: "Ланцюжок доміно", hand: "Ваша рука", chooseSide: "Оберіть бік столу",
       won: "Ви перемогли", lost: "Ви програли", playAgain: "До лобі", unavailable: "Стіл недоступний", preparing: "Готуємо стіл",
@@ -114,7 +114,7 @@ const messages = {
     game: {
       you: "Вы", opponent: "Соперник", round: "Раунд", firstTo: "до", tiles: "костей",
       opening: "Сделайте первый ход", boneyard: "Базар", yourTurn: "Ваш ход",
-      thinking: "Соперник думает…", playLeft: "Положить слева", playRight: "Положить справа",
+      thinking: "Соперник думает…", playLeft: "Положить в начало", playRight: "Положить в конец",
       cancel: "Отмена", draw: "Взять кость", pass: "Пас", claimForfeit: "Засчитать техническую победу", score: "Счёт матча",
       opponentHand: "Рука соперника", chain: "Цепочка домино", hand: "Ваша рука", chooseSide: "Выберите сторону стола",
       won: "Вы победили", lost: "Вы проиграли", playAgain: "В лобби", unavailable: "Стол недоступен", preparing: "Готовим стол",

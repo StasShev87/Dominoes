@@ -8,6 +8,7 @@ COPY packages/game-engine/package.json packages/game-engine/package.json
 RUN pnpm install --frozen-lockfile
 COPY apps/api apps/api
 COPY packages packages
+RUN pnpm --filter @dominoes/api db:generate
 RUN pnpm turbo run build --filter=@dominoes/api...
 
 FROM node:24-alpine AS runtime

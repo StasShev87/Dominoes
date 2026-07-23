@@ -14,4 +14,11 @@ describe("localized interface messages", () => {
     expect(getMessages("en").lobby.playComputer).toBe("Play the computer");
     expect(getMessages("ru").lobby.playComputer).toBe("Играть с компьютером");
   });
+
+  test("describes chain placement as beginning and end", () => {
+    expect(getMessages("en").game.playLeft).toBe("Play at beginning");
+    expect(getMessages("en").game.playRight).toBe("Play at end");
+    expect(getMessages("ru").game.playLeft).toBe("Положить в начало");
+    expect(getMessages("ru").game.playRight).toBe("Положить в конец");
+  });
 });

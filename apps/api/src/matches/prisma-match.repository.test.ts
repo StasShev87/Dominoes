@@ -1,9 +1,24 @@
 import { createMatch } from "@dominoes/game-engine";
 import { describe, expect, test, vi } from "vitest";
 import { AppError, type StoredMatch } from "./match.service.js";
-import { PrismaMatchRepository } from "./prisma-match.repository.js";
+import { normalizeMatchState, PrismaMatchRepository } from "./prisma-match.repository.js";
 
 describe("PrismaMatchRepository", () => {
+  test("normalizes move numbers in legacy persisted chains", () => {
+    const state = createMatch({ matchId: "legacy", seed: 1 });
+    const legacy = {
+      ...state,
+      round: {
+        ...state.round,
+        chain: [
+          { tile: { id: "1-2", left: 1, right: 2 }, left: 1, right: 2 },
+          { tile: { id: "2-3", left: 2, right: 3 }, left: 2, right: 3 }
+        ]
+      }
+    };
+
+    expect(normalizeMatchState(legacy).round.chain.map(({ moveNumber }) => moveNumber)).toEqual([0, 1]);
+  });
   test("rejects a stale concurrent save", async () => {
     const transaction = {
       account: { upsert: vi.fn(async () => undefined) },

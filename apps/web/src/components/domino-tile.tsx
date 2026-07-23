@@ -11,10 +11,22 @@ interface DominoTileProps {
   readonly selectable?: boolean;
   readonly onSelect?: (tileId: string) => void;
   readonly compact?: boolean;
+  readonly orientation?: "horizontal" | "vertical";
 }
 
-export function DominoTile({ tile, selectable = false, onSelect, compact = false }: DominoTileProps) {
+const PIP_POSITIONS = {
+  0: [],
+  1: ["middle-center"],
+  2: ["top-left", "bottom-right"],
+  3: ["top-left", "middle-center", "bottom-right"],
+  4: ["top-left", "top-right", "bottom-left", "bottom-right"],
+  5: ["top-left", "top-right", "middle-center", "bottom-left", "bottom-right"],
+  6: ["top-left", "top-right", "middle-left", "middle-right", "bottom-left", "bottom-right"]
+} as const;
+
+export function DominoTile({ tile, selectable = false, onSelect, compact = false, orientation = "vertical" }: DominoTileProps) {
   const label = `Tile ${tile.id}`;
+  const className = `domino domino-${orientation} ${compact ? "domino-compact" : ""}`;
   const face = (
     <span className="domino-face" aria-hidden="true">
       <PipGrid count={tile.left} />
@@ -28,7 +40,8 @@ export function DominoTile({ tile, selectable = false, onSelect, compact = false
       <button
         type="button"
         aria-label={label}
-        className={`domino ${compact ? "domino-compact" : ""}`}
+        className={className}
+        data-orientation={orientation}
         onClick={() => onSelect?.(tile.id)}
       >
         {face}
@@ -37,16 +50,17 @@ export function DominoTile({ tile, selectable = false, onSelect, compact = false
   }
 
   return (
-    <span role="img" aria-label={label} className={`domino ${compact ? "domino-compact" : ""}`}>
+    <span role="img" aria-label={label} className={className} data-orientation={orientation}>
       {face}
     </span>
   );
 }
 
 function PipGrid({ count }: { readonly count: number }) {
+  const positions = PIP_POSITIONS[count as keyof typeof PIP_POSITIONS] ?? [];
   return (
     <span className={`pip-grid pips-${count}`}>
-      {Array.from({ length: count }, (_, index) => <span className="pip" key={index} />)}
+      {positions.map((position) => <span className="pip" data-position={position} key={position} />)}
     </span>
   );
 }

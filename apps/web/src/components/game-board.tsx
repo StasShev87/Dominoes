@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerView, PublicGameCommand } from "@dominoes/contracts";
 import { DominoTile } from "./domino-tile.js";
 import { getMessages } from "../lib/i18n.js";
+import { layoutDominoChain } from "./domino-chain-layout.js";
 
 interface GameBoardProps {
   readonly view: PlayerView;
@@ -15,8 +16,23 @@ interface GameBoardProps {
 export function GameBoard({ view, onCommand, busy = false, locale = "en" }: GameBoardProps) {
   const t = getMessages(locale).game;
   const [pendingTile, setPendingTile] = useState<string | null>(null);
+  const [boardWidth, setBoardWidth] = useState(900);
+  const boardRef = useRef<HTMLDivElement>(null);
   const opponent = view.seats.find(({ seat }) => seat !== view.seat);
   const selectedAction = view.legalActions.find((action) => action.type === "PLAY_TILE" && action.tileId === pendingTile);
+  const chainLayout = useMemo(() => layoutDominoChain(view.chain, boardWidth), [view.chain, boardWidth]);
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    const updateWidth = (width: number) => {
+      if (width > 0) setBoardWidth(Math.round(width));
+    };
+    updateWidth(board.getBoundingClientRect().width);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => updateWidth(entry?.contentRect.width ?? 0));
+    observer.observe(board);
+    return () => observer.disconnect();
+  }, []);
   const selectTile = (tileId: string) => {
     const action = view.legalActions.find((candidate) => candidate.type === "PLAY_TILE" && candidate.tileId === tileId);
     if (!action || action.type !== "PLAY_TILE") return;
@@ -37,7 +53,15 @@ export function GameBoard({ view, onCommand, busy = false, locale = "en" }: Game
         <p>{t.opponent} · {opponent?.tileCount ?? 0} {t.tiles}</p>
       </section>
       <section className="board-zone" aria-label={t.chain}>
-        <div className="chain-scroll">{view.chain.length ? view.chain.map((placed, index) => <DominoTile tile={placed.tile} compact key={`${placed.tile.id}-${index}`} />) : <p className="empty-board">{t.opening}</p>}</div>
+        <div className="chain-scroll" ref={boardRef}>{view.chain.length ? <div className="chain-layout" style={{ height: chainLayout.height }}>
+          {chainLayout.tiles.map((placed) => <div
+            className="chain-tile"
+            data-move-number={placed.tile.moveNumber}
+            data-origin={placed.tile.moveNumber === 0 ? "true" : undefined}
+            key={placed.tile.moveNumber}
+            style={{ width: placed.width, height: placed.height, transform: `translate(${placed.x}px, ${placed.y}px)` }}
+          ><DominoTile tile={placed.tile.tile} compact orientation={placed.orientation} /></div>)}
+        </div> : <p className="empty-board">{t.opening}</p>}</div>
         <div className="table-meta"><span>{t.boneyard} · {view.boneyardCount}</span><span>{view.currentSeat === view.seat ? t.yourTurn : t.thinking}</span></div>
       </section>
       <section className="hand-zone" aria-label={t.hand}>

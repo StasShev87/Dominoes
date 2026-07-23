@@ -67,10 +67,20 @@ describe("match lifecycle", () => {
     });
 
     expect(result.state.round.chain.map(({ tile }) => tile.id)).toEqual(["1-2", "2-4"]);
+    expect(result.state.round.chain.map(({ moveNumber }) => moveNumber)).toEqual([1, 0]);
     expect(result.state.round.openEnds).toEqual([1, 4]);
     expect(result.state.round.currentSeat).toBe(1);
     expect(result.state.version).toBe(1);
     expect(result.events[0]?.type).toBe("TILE_PLAYED");
+  });
+
+  test("numbers the opening tile as move zero", () => {
+    const state = fixture({ hands: [[tile(1, 2), tile(4, 6)], [tile(0, 0)]], chain: [] });
+
+    const result = applyCommand(state, { type: "PLAY_TILE", seat: 0, tileId: "1-2", side: "LEFT" });
+
+    expect(result.state.round.chain[0]?.moveNumber).toBe(0);
+    expect(createPlayerView(result.state, 0).chain[0]?.moveNumber).toBe(0);
   });
 
   test("rejects a move from a seat that does not own the turn", () => {
@@ -221,8 +231,8 @@ function tile(left: Tile["left"], right: Tile["right"]): Tile {
   return { id: `${low}-${high}`, left: low, right: high };
 }
 
-function placed(left: Tile["left"], right: Tile["right"]) {
-  return { tile: tile(left, right), left, right };
+function placed(left: Tile["left"], right: Tile["right"], moveNumber = 0) {
+  return { tile: tile(left, right), left, right, moveNumber };
 }
 
 function fixture(input: {
@@ -232,9 +242,9 @@ function fixture(input: {
   currentSeat?: number;
   consecutivePasses?: number;
 }): MatchState {
-  const openEnds: [Tile["left"], Tile["right"]] = input.chain.length
+  const openEnds: [Tile["left"], Tile["right"]] | null = input.chain.length
     ? [input.chain[0]!.left, input.chain.at(-1)!.right]
-    : [0, 0];
+    : null;
   return {
     id: "fixture",
     targetScore: 100,
