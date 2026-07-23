@@ -33,7 +33,8 @@ export function layoutDominoChain(chain: readonly PlacedTile[], containerWidth: 
   if (!chain.length) return { tiles: [], height: MIN_HEIGHT };
   const width = Math.max(containerWidth, LONG_SIDE + PADDING * 2);
   const originIndex = Math.max(0, chain.findIndex(({ moveNumber }) => moveNumber === 0));
-  const origin = rawTile(chain[originIndex]!, width / 2, 0, "horizontal", 1);
+  const originTile = chain[originIndex]!;
+  const origin = rawTile(originTile, width / 2, 0, tileOrientation(originTile, "horizontal"), 1);
   const rawTiles = new Map<number, RawTile>([[originIndex, origin]]);
 
   placeBranch(chain, originIndex - 1, -1, origin, "left", width, rawTiles);
