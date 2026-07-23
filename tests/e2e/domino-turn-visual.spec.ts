@@ -15,6 +15,22 @@ interface TileGeometry {
   readonly halves: readonly HalfGeometry[];
 }
 
+interface TilePlacement {
+  readonly transform: string;
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+const DOUBLE_SIX_TILE_IDS = new Set(
+  Array.from({ length: 7 }, (_, left) =>
+    Array.from({ length: 7 - left }, (_, offset) => `${left}-${left + offset}`)
+  ).flat()
+);
+
 function placed(moveNumber: number, left: number, right: number): PlacedTile {
   const low = Math.min(left, right) as PlacedTile["left"];
   const high = Math.max(left, right) as PlacedTile["right"];
@@ -30,6 +46,14 @@ function chain(pips: number[], moves: number[]): PlacedTile[] {
   return moves.map((move, index) => placed(move, pips[index]!, pips[index + 1]!));
 }
 
+function remainingBoneyardCount(placedChain: PlacedTile[]): number {
+  const ids = placedChain.map(({ tile }) => tile.id);
+  if (ids.some((id) => !DOUBLE_SIX_TILE_IDS.has(id)) || new Set(ids).size !== ids.length) {
+    throw new Error("Visual fixtures must use unique physical tiles from a double-six set");
+  }
+  return DOUBLE_SIX_TILE_IDS.size - ids.length;
+}
+
 function view(matchId: string, placedChain: PlacedTile[]): PlayerView {
   return {
     matchId,
@@ -43,7 +67,7 @@ function view(matchId: string, placedChain: PlacedTile[]): PlayerView {
     currentSeat: 0,
     hand: [],
     seats: [{ seat: 0, tileCount: 0 }, { seat: 1, tileCount: 0 }],
-    boneyardCount: 0,
+    boneyardCount: remainingBoneyardCount(placedChain),
     chain: placedChain,
     openEnds: placedChain.length
       ? [placedChain[0]!.left, placedChain.at(-1)!.right]
@@ -70,7 +94,37 @@ async function loadScenario(
   );
   await page.goto(`/en/game/${name}`);
   await page.addStyleTag({ content: ".chain-tile { transition: none !important; }" });
-  await expect(page.locator(".chain-tile")).toHaveCount(placedChain.length);
+  await waitForResponsiveBoardLayout(page, placedChain.length);
+}
+
+async function waitForResponsiveBoardLayout(page: Page, expectedTileCount: number): Promise<void> {
+  const tiles = page.locator(".chain-tile");
+  await expect(tiles).toHaveCount(expectedTileCount);
+  const readPositions = () => tiles.evaluateAll((elements) => elements.map((element) => {
+    const bounds = element.getBoundingClientRect();
+    return {
+      transform: element.getAttribute("style") ?? "",
+      left: bounds.left,
+      top: bounds.top,
+      right: bounds.right,
+      bottom: bounds.bottom,
+      width: bounds.width,
+      height: bounds.height
+    };
+  }));
+  const first = await readPositions();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const second = await readPositions();
+  expect(second).toEqual(first);
+
+  const layout = await page.locator(".chain-layout").evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return { left: bounds.left, right: bounds.right };
+  });
+  for (const placement of second) {
+    expect(placement.left).toBeGreaterThanOrEqual(layout.left - 0.5);
+    expect(placement.right).toBeLessThanOrEqual(layout.right + 0.5);
+  }
 }
 
 async function screenshotScenario(
@@ -191,23 +245,31 @@ async function assertRepeatedBranchCorners(page: Page): Promise<void> {
   const moveNumbers = await page.locator(".chain-tile").evaluateAll((tiles) =>
     tiles.map((tile) => Number(tile.getAttribute("data-move-number")))
   );
-  let verifiedCorners = 0;
-  const verifiedDirections = new Set<-1 | 1>();
-  for (const moveNumber of moveNumbers) {
-    if (moveNumber === 0 || !moveNumbers.includes(moveNumber - 2) || !moveNumbers.includes(moveNumber + 2)) continue;
-    const corner = await geometryForMove(page, moveNumber);
-    if (corner.orientation !== "vertical") continue;
-    const verticalDirection = moveNumber % 2 === 0 ? 1 : -1;
-    const [incoming, outgoing] = await Promise.all([
-      geometryForMove(page, moveNumber - 2),
-      geometryForMove(page, moveNumber + 2)
-    ]);
-    assertCornerContinuesVertically(incoming, corner, outgoing, verticalDirection);
-    verifiedCorners += 1;
-    verifiedDirections.add(verticalDirection);
+  const originIndex = moveNumbers.indexOf(0);
+  expect(originIndex).toBeGreaterThan(0);
+  expect(originIndex).toBeLessThan(moveNumbers.length - 1);
+  const branches = [
+    { name: "left", verticalDirection: -1 as const, moves: moveNumbers.slice(0, originIndex).reverse() },
+    { name: "right", verticalDirection: 1 as const, moves: moveNumbers.slice(originIndex + 1) }
+  ];
+
+  for (const branch of branches) {
+    let verifiedCorners = 0;
+    for (let index = 0; index < branch.moves.length - 1; index += 1) {
+      const moveNumber = branch.moves[index]!;
+      const corner = await geometryForMove(page, moveNumber);
+      if (corner.orientation !== "vertical") continue;
+      const incomingMove = index === 0 ? 0 : branch.moves[index - 1]!;
+      const outgoingMove = branch.moves[index + 1]!;
+      const [incoming, outgoing] = await Promise.all([
+        geometryForMove(page, incomingMove),
+        geometryForMove(page, outgoingMove)
+      ]);
+      assertCornerContinuesVertically(incoming, corner, outgoing, branch.verticalDirection);
+      verifiedCorners += 1;
+    }
+    expect(verifiedCorners, `${branch.name} branch`).toBeGreaterThanOrEqual(2);
   }
-  expect(verifiedCorners).toBeGreaterThanOrEqual(3);
-  expect(verifiedDirections).toEqual(new Set([-1, 1]));
 }
 
 async function assertNarrowFirstDoubleBranchIsTotal(page: Page): Promise<void> {
@@ -215,10 +277,38 @@ async function assertNarrowFirstDoubleBranchIsTotal(page: Page): Promise<void> {
   await loadScenario(page, "turn-first-double-narrow", firstBranchDouble, 320);
   const tiles = page.locator(".chain-tile");
   await expect(tiles).toHaveCount(firstBranchDouble.length);
-  const transforms = await tiles.evaluateAll((elements) =>
-    elements.map((element) => getComputedStyle(element).transform)
-  );
-  expect(transforms.every((transform) => !/NaN|undefined/.test(transform))).toBe(true);
+  const board = await page.locator(".chain-layout").boundingBox();
+  expect(board).not.toBeNull();
+  const placements = await tiles.evaluateAll<TilePlacement[]>((elements) => elements.map((element) => {
+    const bounds = element.getBoundingClientRect();
+    return {
+      transform: element.getAttribute("style") ?? "",
+      left: bounds.left,
+      top: bounds.top,
+      right: bounds.right,
+      bottom: bounds.bottom,
+      width: bounds.width,
+      height: bounds.height
+    };
+  }));
+  for (const placement of placements) {
+    expect(placement.transform).toMatch(/transform:\s*translate\([^)]*px,\s*[^)]*px\)/);
+    expect(Object.values(placement).filter((value) => typeof value === "number").every(Number.isFinite)).toBe(true);
+    expect(placement.width).toBeGreaterThan(0);
+    expect(placement.height).toBeGreaterThan(0);
+    expect(placement.right).toBeGreaterThan(board!.x);
+    expect(placement.left).toBeLessThan(board!.x + board!.width);
+  }
+  expect(new Set(placements.map(({ left, top }) => `${left}:${top}`)).size).toBe(placements.length);
+  for (let index = 0; index < placements.length; index += 1) {
+    for (let otherIndex = index + 1; otherIndex < placements.length; otherIndex += 1) {
+      const first = placements[index]!;
+      const second = placements[otherIndex]!;
+      const overlap = Math.max(0, Math.min(first.right, second.right) - Math.max(first.left, second.left)) *
+        Math.max(0, Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top));
+      expect(overlap).toBeLessThan(Math.min(first.width * first.height, second.width * second.height) / 4);
+    }
+  }
 }
 
 const normal = chain(
@@ -230,8 +320,8 @@ const throughDouble = chain(
   [0, 1, 2, 3, 4, 5]
 );
 const repeated = chain(
-  [0, 1, 2, 3, 4, 5, 6, 0, 2, 4, 6, 5, 3, 1, 0, 3, 6, 2, 5, 1, 4],
-  [19, 17, 15, 13, 11, 9, 7, 5, 3, 1, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18]
+  [0, 1, 2, 0, 3, 1, 4, 0, 5, 1, 6, 2, 3, 4, 2, 5, 3, 6, 4, 5, 6, 0],
+  [19, 17, 15, 13, 11, 9, 7, 5, 3, 1, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
 );
 
 test.beforeEach(() => {
