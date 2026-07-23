@@ -5,11 +5,21 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/v1";
 
 export type ClientPrincipal = `${"ACCOUNT" | "GUEST"}:${string}`;
 
+function createClientUuid(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export function getOrCreatePrincipal(kind: "ACCOUNT" | "GUEST" = "ACCOUNT"): ClientPrincipal {
   const key = `dominoes-${kind.toLowerCase()}-principal`;
   const existing = window.localStorage.getItem(key);
   if (existing) return `${kind}:${existing}`;
-  const id = crypto.randomUUID();
+  const id = createClientUuid();
   window.localStorage.setItem(key, id);
   return `${kind}:${id}`;
 }
@@ -48,7 +58,7 @@ export async function sendCommand(
 ): Promise<PlayerView> {
   const response = await clientRequest<{ snapshot: unknown }>(`/matches/${matchId}/commands`, principal, {
     method: "POST",
-    body: JSON.stringify({ commandId: crypto.randomUUID(), expectedVersion: view.version, command })
+    body: JSON.stringify({ commandId: createClientUuid(), expectedVersion: view.version, command })
   });
   return PlayerViewSchema.parse(response.snapshot);
 }
