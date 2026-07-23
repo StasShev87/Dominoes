@@ -58,17 +58,45 @@ function remainingDoubleSixTiles(placedChain: PlacedTile[]): PlayerView["hand"] 
   return DOUBLE_SIX_TILES.filter(({ id }) => !ids.includes(id));
 }
 
-function view(matchId: string, placedChain: PlacedTile[]): PlayerView {
+interface ActiveFixtureState {
+  readonly hand: PlayerView["hand"];
+  readonly opponentTileCount: number;
+  readonly boneyardCount: number;
+  readonly legalActions: PlayerView["legalActions"];
+}
+
+function activeFixtureState(placedChain: PlacedTile[], openEnds: readonly [number, number] | null): ActiveFixtureState {
   const remainingTiles = remainingDoubleSixTiles(placedChain);
+  const chainLength = placedChain.length;
+  const boneyardCount = chainLength <= 14 ? 14 : 0;
+  const currentHandCount = chainLength <= 14 ? 7 - Math.floor(chainLength / 2) : 4;
+  const opponentTileCount = remainingTiles.length - currentHandCount - boneyardCount;
+  const hand = remainingTiles.filter(({ left, right }) =>
+    !openEnds || (left !== openEnds[0] && left !== openEnds[1] && right !== openEnds[0] && right !== openEnds[1])
+  ).slice(0, currentHandCount);
+  const total = chainLength + hand.length + opponentTileCount + boneyardCount;
+  if (
+    boneyardCount < 0 || boneyardCount > 14 ||
+    opponentTileCount < 1 || hand.length !== currentHandCount ||
+    new Set(hand.map(({ id }) => id)).size !== hand.length ||
+    hand.some(({ id }) => placedChain.some(({ tile }) => tile.id === id)) ||
+    total !== DOUBLE_SIX_TILES.length
+  ) {
+    throw new Error("Active visual fixtures must account for a reachable double-six deal");
+  }
+  return {
+    hand,
+    opponentTileCount,
+    boneyardCount,
+    legalActions: boneyardCount ? [{ type: "DRAW_TILE" }] : [{ type: "PASS" }]
+  };
+}
+
+function view(matchId: string, placedChain: PlacedTile[]): PlayerView {
   const openEnds = placedChain.length
     ? [placedChain[0]!.left, placedChain.at(-1)!.right] as const
     : null;
-  const handTile = remainingTiles.find(({ left, right }) =>
-    !openEnds || (left !== openEnds[0] && left !== openEnds[1] && right !== openEnds[0] && right !== openEnds[1])
-  );
-  if (!handTile || remainingTiles.length < 2) {
-    throw new Error("Active visual fixtures must leave a unique non-playable hand tile and opponent tile");
-  }
+  const fixture = activeFixtureState(placedChain, openEnds);
   return {
     matchId,
     seat: 0,
@@ -79,12 +107,12 @@ function view(matchId: string, placedChain: PlacedTile[]): PlayerView {
     winnerSeat: null,
     roundNumber: 1,
     currentSeat: 0,
-    hand: [handTile],
-    seats: [{ seat: 0, tileCount: 1 }, { seat: 1, tileCount: 1 }],
-    boneyardCount: remainingTiles.length - 2,
+    hand: fixture.hand,
+    seats: [{ seat: 0, tileCount: fixture.hand.length }, { seat: 1, tileCount: fixture.opponentTileCount }],
+    boneyardCount: fixture.boneyardCount,
     chain: placedChain,
     openEnds,
-    legalActions: [{ type: "DRAW_TILE" }]
+    legalActions: fixture.legalActions
   };
 }
 
@@ -96,6 +124,7 @@ async function loadScenario(
 ): Promise<void> {
   test.skip(test.info().project.name !== "desktop-chromium", "desktop visual proof");
   await page.setViewportSize({ width: viewportWidth, height: 900 });
+  await page.context().route("**/sw.js", (route) => route.abort());
   await page.routeWebSocket(/\/socket\.io\//, () => {});
   await page.route(`**/v1/matches/${name}`, (route) =>
     route.fulfill({
@@ -353,16 +382,11 @@ test.beforeEach(() => {
   test.skip(test.info().project.name !== "desktop-chromium", "desktop visual proof");
 });
 
-test("captures a normal penultimate-tile turn", async ({ page, browser }) => {
+test("captures a normal penultimate-tile turn", async ({ page }) => {
+  await assertNarrowFirstDoubleBranchIsTotal(page);
   await screenshotScenario(page, "turn-penultimate", normal, "artifacts/domino-turn-penultimate.png", () =>
     assertMoveCorner(page, 3, 1)
   );
-  const narrowContext = await browser.newContext();
-  try {
-    await assertNarrowFirstDoubleBranchIsTotal(await narrowContext.newPage());
-  } finally {
-    await narrowContext.close();
-  }
 });
 
 test("captures rollback through a double", async ({ page }) => {
