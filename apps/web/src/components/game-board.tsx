@@ -60,7 +60,7 @@ export function GameBoard({ view, onCommand, busy = false, locale = "en" }: Game
             data-origin={placed.tile.moveNumber === 0 ? "true" : undefined}
             key={placed.tile.moveNumber}
             style={{ width: placed.width, height: placed.height, transform: `translate(${placed.x}px, ${placed.y}px)` }}
-          ><DominoTile tile={placed.tile.tile} compact orientation={placed.orientation} /></div>)}
+          ><DominoTile tile={placed.visualTile} compact orientation={placed.orientation} /></div>)}
         </div> : <p className="empty-board">{t.opening}</p>}</div>
         <div className="table-meta"><span>{t.boneyard} · {view.boneyardCount}</span><span>{view.currentSeat === view.seat ? t.yourTurn : t.thinking}</span></div>
       </section>

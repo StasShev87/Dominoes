@@ -48,6 +48,24 @@ describe("GameBoard", () => {
     expect(origin?.querySelector('[data-orientation="horizontal"]')).toBeInTheDocument();
   });
 
+  test("renders chain values in their normalized visual order", () => {
+    const reversedView = {
+      ...view,
+      chain: [{
+        tile: { id: "2-5", left: 2, right: 5 },
+        left: 5,
+        right: 2,
+        moveNumber: 0
+      }]
+    } satisfies PlayerView;
+
+    render(<GameBoard view={reversedView} onCommand={vi.fn()} />);
+
+    const origin = document.querySelector('[data-move-number="0"]')!;
+    expect(origin.querySelectorAll(".pip-grid")[0]?.querySelectorAll(".pip")).toHaveLength(5);
+    expect(origin.querySelectorAll(".pip-grid")[1]?.querySelectorAll(".pip")).toHaveLength(2);
+  });
+
   test("labels both placement ends in Russian", () => {
     render(<GameBoard
       locale="ru"
