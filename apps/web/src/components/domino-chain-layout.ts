@@ -34,6 +34,14 @@ interface RowEntry {
   readonly raw: RawTile;
 }
 
+interface CornerPlacement {
+  readonly centerX: number;
+  readonly centerY: number;
+  readonly width: number;
+  readonly height: number;
+  readonly clamped: boolean;
+}
+
 export function layoutDominoChain(chain: readonly PlacedTile[], containerWidth: number): DominoChainLayout {
   if (!chain.length) return { tiles: [], height: MIN_HEIGHT };
   const width = Math.max(containerWidth, LONG_SIDE + PADDING * 2);
@@ -105,7 +113,17 @@ function placeBranch(
 
     const cornerAt = row.findLastIndex(({ raw }) => !isDouble(raw.tile));
     const previousIsDouble = isDouble(row.at(-1)?.raw.tile ?? tile);
-    const currentBecomesCorner = !isDouble(tile) && (cornerAt < 0 || !previousIsDouble);
+    const proposedCurrentCorner = cornerPlacement(
+      previous,
+      horizontalDirection,
+      verticalDirection,
+      rowCenterY,
+      width
+    );
+    const currentWouldObscurePrevious = proposedCurrentCorner.clamped &&
+      overlapsExcessively(previous, proposedCurrentCorner);
+    const currentBecomesCorner = !isDouble(tile) &&
+      (cornerAt < 0 || (!previousIsDouble && !currentWouldObscurePrevious));
     if (cornerAt < 0 && !currentBecomesCorner) {
       // Keep malformed fixture data total when no non-double is available as a corner.
       const fallback = rawTile(
@@ -135,19 +153,17 @@ function placeBranch(
     }
 
     const cornerOrientation: DominoOrientation = "vertical";
-    const cornerDimensions = tileDimensions(cornerOrientation);
-    const cornerCenterX = Math.min(
-      width - PADDING - cornerDimensions.width / 2,
-      Math.max(
-        PADDING + cornerDimensions.width / 2,
-        beforeCorner.centerX + horizontalDirection * (beforeCorner.width / 2 + cornerDimensions.width / 2 + GAP)
-      )
+    const cornerGeometry = cornerPlacement(
+      beforeCorner,
+      horizontalDirection,
+      verticalDirection,
+      rowCenterY,
+      width
     );
-    const cornerCenterY = rowCenterY + verticalDirection * cornerDimensions.height / 4;
     const corner = rawTile(
       cornerEntry.raw.tile,
-      cornerCenterX,
-      cornerCenterY,
+      cornerGeometry.centerX,
+      cornerGeometry.centerY,
       cornerOrientation,
       flowDirection(verticalDirection, indexStep)
     );
@@ -157,11 +173,49 @@ function placeBranch(
       pending.unshift(...replay, index);
     }
     horizontalDirection = horizontalDirection === -1 ? 1 : -1;
-    rowCenterY = cornerCenterY + verticalDirection * corner.height / 4;
+    rowCenterY = cornerGeometry.centerY + verticalDirection * corner.height / 4;
     rowAnchor = corner;
     previous = corner;
     row = [];
   }
+}
+
+function cornerPlacement(
+  beforeCorner: RawTile,
+  horizontalDirection: -1 | 1,
+  verticalDirection: -1 | 1,
+  rowCenterY: number,
+  width: number
+): CornerPlacement {
+  const { width: cornerWidth, height: cornerHeight } = tileDimensions("vertical");
+  const idealCenterX = beforeCorner.centerX +
+    horizontalDirection * (beforeCorner.width / 2 + cornerWidth / 2 + GAP);
+  const centerX = Math.min(
+    width - PADDING - cornerWidth / 2,
+    Math.max(PADDING + cornerWidth / 2, idealCenterX)
+  );
+  return {
+    centerX,
+    centerY: rowCenterY + verticalDirection * cornerHeight / 4,
+    width: cornerWidth,
+    height: cornerHeight,
+    clamped: centerX !== idealCenterX
+  };
+}
+
+function overlapsExcessively(first: RawTile, second: CornerPlacement): boolean {
+  const overlapWidth = Math.max(
+    0,
+    Math.min(first.centerX + first.width / 2, second.centerX + second.width / 2) -
+      Math.max(first.centerX - first.width / 2, second.centerX - second.width / 2)
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(first.centerY + first.height / 2, second.centerY + second.height / 2) -
+      Math.max(first.centerY - first.height / 2, second.centerY - second.height / 2)
+  );
+  return overlapWidth * overlapHeight >=
+    Math.min(first.width * first.height, second.width * second.height) / 4;
 }
 
 function isDouble(tile: PlacedTile): boolean {

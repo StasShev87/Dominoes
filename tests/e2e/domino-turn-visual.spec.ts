@@ -365,6 +365,38 @@ async function assertNarrowFirstDoubleBranchIsTotal(page: Page): Promise<void> {
   }
 }
 
+async function assertNarrowOrdinaryChainRollsCornerBackward(page: Page): Promise<void> {
+  const narrowOrdinary = chain([1, 5, 3, 2], [0, 1, 2]);
+  await loadScenario(page, "turn-ordinary-narrow", narrowOrdinary, 320);
+  const [incoming, corner, outgoing] = await Promise.all([
+    geometryForMove(page, 0),
+    geometryForMove(page, 1),
+    geometryForMove(page, 2)
+  ]);
+  assertCornerContinuesVertically(incoming, corner, outgoing, 1);
+  expect(outgoing.orientation).toBe("horizontal");
+
+  const [cornerBounds, outgoingBounds] = await Promise.all([
+    page.locator('[data-move-number="1"]').boundingBox(),
+    page.locator('[data-move-number="2"]').boundingBox()
+  ]);
+  expect(cornerBounds).not.toBeNull();
+  expect(outgoingBounds).not.toBeNull();
+  const overlap = Math.max(
+    0,
+    Math.min(cornerBounds!.x + cornerBounds!.width, outgoingBounds!.x + outgoingBounds!.width) -
+      Math.max(cornerBounds!.x, outgoingBounds!.x)
+  ) * Math.max(
+    0,
+    Math.min(cornerBounds!.y + cornerBounds!.height, outgoingBounds!.y + outgoingBounds!.height) -
+      Math.max(cornerBounds!.y, outgoingBounds!.y)
+  );
+  expect(overlap).toBeLessThan(Math.min(
+    cornerBounds!.width * cornerBounds!.height,
+    outgoingBounds!.width * outgoingBounds!.height
+  ) / 4);
+}
+
 const normal = chain(
   [1, 5, 3, 2, 4, 0],
   [0, 1, 2, 3, 4]
@@ -384,6 +416,7 @@ test.beforeEach(() => {
 
 test("captures a normal penultimate-tile turn", async ({ page }) => {
   await assertNarrowFirstDoubleBranchIsTotal(page);
+  await assertNarrowOrdinaryChainRollsCornerBackward(page);
   await screenshotScenario(page, "turn-penultimate", normal, "artifacts/domino-turn-penultimate.png", () =>
     assertMoveCorner(page, 3, 1)
   );
