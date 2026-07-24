@@ -4,6 +4,44 @@ import { layoutDominoChain } from "./domino-chain-layout.js";
 
 type PlacedTile = PlayerView["chain"][number];
 
+function center(tile: ReturnType<typeof layoutDominoChain>["tiles"][number]) {
+  return { x: tile.x + tile.width / 2, y: tile.y + tile.height / 2 };
+}
+
+function halfCenters(tile: ReturnType<typeof layoutDominoChain>["tiles"][number]) {
+  const { x, y } = center(tile);
+  return tile.orientation === "horizontal"
+    ? [
+        { x: x - tile.width / 4, y, value: tile.visualTile.left },
+        { x: x + tile.width / 4, y, value: tile.visualTile.right }
+      ]
+    : [
+        { x, y: y - tile.height / 4, value: tile.visualTile.left },
+        { x, y: y + tile.height / 4, value: tile.visualTile.right }
+      ];
+}
+
+function closestHalves(
+  first: ReturnType<typeof layoutDominoChain>["tiles"][number],
+  second: ReturnType<typeof layoutDominoChain>["tiles"][number]
+) {
+  return halfCenters(first).flatMap((left) =>
+    halfCenters(second).map((right) => ({
+      left,
+      right,
+      distance: Math.hypot(left.x - right.x, left.y - right.y)
+    }))
+  ).sort((left, right) => left.distance - right.distance)[0]!;
+}
+
+function overlapArea(
+  first: ReturnType<typeof layoutDominoChain>["tiles"][number],
+  second: ReturnType<typeof layoutDominoChain>["tiles"][number]
+): number {
+  return Math.max(0, Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x)) *
+    Math.max(0, Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y));
+}
+
 describe("layoutDominoChain", () => {
   test("orders visible pips along both branches around move zero", () => {
     const chain = [
@@ -39,12 +77,14 @@ describe("layoutDominoChain", () => {
     const byMove = (moveNumber: number) =>
       layout.tiles.find(({ tile }) => tile.moveNumber === moveNumber)!;
 
-    expect(byMove(3).orientation).toBe("vertical");
-    expect([byMove(3).visualTile.left, byMove(3).visualTile.right]).toEqual([3, 4]);
-    expect(byMove(4).orientation).toBe("vertical");
-    expect([byMove(4).visualTile.left, byMove(4).visualTile.right]).toEqual([4, 3]);
-    expect([byMove(5).visualTile.left, byMove(5).visualTile.right]).toEqual([3, 2]);
-    expect([byMove(6).visualTile.left, byMove(6).visualTile.right]).toEqual([2, 3]);
+    expect(byMove(1).orientation).toBe("vertical");
+    expect([byMove(1).visualTile.left, byMove(1).visualTile.right]).toEqual([4, 5]);
+    expect(byMove(2).orientation).toBe("vertical");
+    expect([byMove(2).visualTile.left, byMove(2).visualTile.right]).toEqual([6, 4]);
+    expect([byMove(3).visualTile.left, byMove(3).visualTile.right]).toEqual([4, 3]);
+    expect([byMove(4).visualTile.left, byMove(4).visualTile.right]).toEqual([3, 4]);
+    expect([byMove(5).visualTile.left, byMove(5).visualTile.right]).toEqual([2, 3]);
+    expect([byMove(6).visualTile.left, byMove(6).visualTile.right]).toEqual([3, 2]);
   });
 
   test("keeps move zero centered and grows toward both sides", () => {
@@ -81,7 +121,7 @@ describe("layoutDominoChain", () => {
     expect(beginningOuter.y).toBeLessThan(origin.y);
     expect(endOuter.y).toBeGreaterThan(origin.y);
     expect(layout.tiles.every(({ x, width }) => x >= 12 && x + width <= 288)).toBe(true);
-    expect(layout.height).toBeGreaterThan(280);
+    expect(layout.height).toBeGreaterThanOrEqual(280);
   });
 
   test("places doubles perpendicular to travel", () => {
@@ -90,6 +130,106 @@ describe("layoutDominoChain", () => {
 
     expect(layout.tiles.find(({ tile }) => tile.moveNumber === 1)?.orientation).toBe("vertical");
     expect(layout.tiles.find(({ tile }) => tile.moveNumber === 2)?.orientation).toBe("vertical");
+  });
+
+  test("turns the penultimate non-double and aligns rows with its halves", () => {
+    const chain = [
+      placedValues(0, 1, 5),
+      placedValues(1, 5, 3),
+      placedValues(2, 3, 2),
+      placedValues(3, 2, 4)
+    ];
+    const layout = layoutDominoChain(chain, 430);
+    const byMove = (move: number) =>
+      layout.tiles.find(({ tile }) => tile.moveNumber === move)!;
+    const corner = byMove(2);
+    const incoming = byMove(1);
+    const outgoing = byMove(3);
+    const cornerHalves = halfCenters(corner);
+
+    expect(corner.orientation).toBe("vertical");
+    expect(center(incoming).y).toBe(cornerHalves[0]!.y);
+    expect(center(outgoing).y).toBe(cornerHalves[1]!.y);
+    expect(center(outgoing).x).toBeLessThan(center(corner).x);
+  });
+
+  test("rolls the corner backward when a narrow clamp would obscure the previous tile", () => {
+    const chain = [
+      placedValues(0, 1, 5),
+      placedValues(1, 5, 3),
+      placedValues(2, 3, 2)
+    ];
+    const layout = layoutDominoChain(chain, 300);
+    const byMove = (move: number) =>
+      layout.tiles.find(({ tile }) => tile.moveNumber === move)!;
+    const incoming = byMove(0);
+    const corner = byMove(1);
+    const outgoing = byMove(2);
+    const cornerHalves = halfCenters(corner);
+
+    expect(corner.orientation).toBe("vertical");
+    expect(outgoing.orientation).toBe("horizontal");
+    expect(center(incoming).y).toBe(cornerHalves[0]!.y);
+    expect(center(outgoing).y).toBe(cornerHalves[1]!.y);
+    expect(overlapArea(corner, outgoing))
+      .toBeLessThan(Math.min(corner.width * corner.height, outgoing.width * outgoing.height) / 4);
+  });
+
+  test("moves a turn backward across a double", () => {
+    const chain = [
+      placedValues(0, 1, 5),
+      placedValues(1, 5, 3),
+      placedValues(2, 3, 3),
+      placedValues(3, 3, 2),
+      placedValues(4, 2, 4)
+    ];
+    const layout = layoutDominoChain(chain, 430);
+    const byMove = (move: number) =>
+      layout.tiles.find(({ tile }) => tile.moveNumber === move)!;
+
+    expect(byMove(1).orientation).toBe("vertical");
+    expect(byMove(2).orientation).toBe("vertical");
+    expect(center(byMove(2)).y).toBe(center(byMove(3)).y);
+    expect(center(byMove(2)).x).toBeGreaterThan(center(byMove(3)).x);
+  });
+
+  test("turns both branches repeatedly and keeps connecting pips equal", () => {
+    const pips = [0, 1, 2, 3, 4, 5, 6, 0, 2, 4, 6, 5, 3, 1, 0, 3, 6, 2, 5, 1, 4];
+    const moves = [19, 17, 15, 13, 11, 9, 7, 5, 3, 1, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18];
+    const chain = moves.map((move, index) =>
+      placedValues(move, pips[index]!, pips[index + 1]!)
+    );
+    const layout = layoutDominoChain(chain, 430);
+    const origin = layout.tiles.find(({ tile }) => tile.moveNumber === 0)!;
+    const leftCorners = layout.tiles.filter(({ orientation, tile }) =>
+      orientation === "vertical" && tile.moveNumber % 2 === 1 && tile.moveNumber !== 0
+    );
+    const rightCorners = layout.tiles.filter(({ orientation, tile }) =>
+      orientation === "vertical" && tile.moveNumber % 2 === 0 && tile.moveNumber !== 0
+    );
+
+    expect(leftCorners.length).toBeGreaterThanOrEqual(2);
+    expect(rightCorners.length).toBeGreaterThanOrEqual(2);
+    expect(Math.min(...leftCorners.map(({ y }) => y))).toBeLessThan(origin.y);
+    expect(Math.max(...rightCorners.map(({ y }) => y))).toBeGreaterThan(origin.y);
+
+    for (let index = 0; index < layout.tiles.length - 1; index += 1) {
+      const connection = closestHalves(layout.tiles[index]!, layout.tiles[index + 1]!);
+      expect(connection.left.value).toBe(connection.right.value);
+    }
+  });
+
+  test("grows tall layouts with symmetric vertical margins", () => {
+    const pips = [1, 5, 3, 2, 4, 0, 6, 1, 3, 5, 2, 6, 4, 1, 0, 2, 5, 6];
+    const chain = pips.slice(0, -1).map((pip, moveNumber) =>
+      placedValues(moveNumber, pip!, pips[moveNumber + 1]!)
+    );
+    const layout = layoutDominoChain(chain, 300);
+    const top = Math.min(...layout.tiles.map(({ y }) => y));
+    const bottom = Math.max(...layout.tiles.map(({ y, height }) => y + height));
+
+    expect(layout.height).toBeGreaterThan(280);
+    expect(top).toBeCloseTo(layout.height - bottom, 5);
   });
 });
 

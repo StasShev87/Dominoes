@@ -29,6 +29,19 @@ interface RawTile extends Omit<PositionedTile, "x" | "y"> {
   readonly centerY: number;
 }
 
+interface RowEntry {
+  readonly index: number;
+  readonly raw: RawTile;
+}
+
+interface CornerPlacement {
+  readonly centerX: number;
+  readonly centerY: number;
+  readonly width: number;
+  readonly height: number;
+  readonly clamped: boolean;
+}
+
 export function layoutDominoChain(chain: readonly PlacedTile[], containerWidth: number): DominoChainLayout {
   if (!chain.length) return { tiles: [], height: MIN_HEIGHT };
   const width = Math.max(containerWidth, LONG_SIDE + PADDING * 2);
@@ -69,28 +82,152 @@ function placeBranch(
   let previous = origin;
   let horizontalDirection: -1 | 1 = branch === "left" ? -1 : 1;
   const verticalDirection: -1 | 1 = branch === "left" ? -1 : 1;
+  const pending = branchIndices(chain.length, firstIndex, indexStep);
+  let rowAnchor = origin;
+  let rowCenterY = origin.centerY;
+  let row: RowEntry[] = [];
 
-  for (let index = firstIndex; index >= 0 && index < chain.length; index += indexStep) {
+  while (pending.length) {
+    const index = pending.shift()!;
     const tile = chain[index]!;
     const orientation = tileOrientation(tile, "horizontal");
     const dimensions = tileDimensions(orientation);
     const centerX = previous.centerX + horizontalDirection * (previous.width / 2 + dimensions.width / 2 + GAP);
     const minCenterX = PADDING + dimensions.width / 2;
     const maxCenterX = width - PADDING - dimensions.width / 2;
-    const horizontalCenterX = Math.min(maxCenterX, Math.max(minCenterX, centerX));
     const crossesBoundary = centerX < minCenterX - GAP || centerX > maxCenterX + GAP;
-    if (crossesBoundary) {
-      const turnOrientation = tileOrientation(tile, "vertical");
-      const turnDimensions = tileDimensions(turnOrientation);
-      const turnCenterX = Math.min(width - PADDING - turnDimensions.width / 2, Math.max(PADDING + turnDimensions.width / 2, previous.centerX));
-      const centerY = previous.centerY + verticalDirection * (previous.height / 2 + turnDimensions.height / 2 + GAP);
-      previous = rawTile(tile, turnCenterX, centerY, turnOrientation, flowDirection(verticalDirection, indexStep));
-      horizontalDirection = horizontalDirection === -1 ? 1 : -1;
-    } else {
-      previous = rawTile(tile, horizontalCenterX, previous.centerY, orientation, flowDirection(horizontalDirection, indexStep));
+
+    if (!crossesBoundary) {
+      const placed = rawTile(
+        tile,
+        Math.min(maxCenterX, Math.max(minCenterX, centerX)),
+        rowCenterY,
+        orientation,
+        flowDirection(horizontalDirection, indexStep)
+      );
+      output.set(index, placed);
+      row.push({ index, raw: placed });
+      previous = placed;
+      continue;
     }
-    output.set(index, previous);
+
+    const cornerAt = row.findLastIndex(({ raw }) => !isDouble(raw.tile));
+    const previousIsDouble = isDouble(row.at(-1)?.raw.tile ?? tile);
+    const proposedCurrentCorner = cornerPlacement(
+      previous,
+      horizontalDirection,
+      verticalDirection,
+      rowCenterY,
+      width
+    );
+    const currentWouldObscurePrevious = proposedCurrentCorner.clamped &&
+      overlapsExcessively(previous, proposedCurrentCorner);
+    const currentBecomesCorner = !isDouble(tile) &&
+      (cornerAt < 0 || (!previousIsDouble && !currentWouldObscurePrevious));
+    if (cornerAt < 0 && !currentBecomesCorner) {
+      // Keep malformed fixture data total when no non-double is available as a corner.
+      const fallback = rawTile(
+        tile,
+        Math.min(maxCenterX, Math.max(minCenterX, centerX)),
+        rowCenterY,
+        orientation,
+        flowDirection(horizontalDirection, indexStep)
+      );
+      output.set(index, fallback);
+      row.push({ index, raw: fallback });
+      previous = fallback;
+      continue;
+    }
+
+    const cornerEntry = currentBecomesCorner
+      ? { index, raw: rawTile(tile, centerX, rowCenterY, orientation, flowDirection(horizontalDirection, indexStep)) }
+      : row[cornerAt]!;
+    const replay = currentBecomesCorner
+      ? []
+      : row.slice(cornerAt + 1).map(({ index: replayIndex }) => replayIndex);
+    const beforeCorner = currentBecomesCorner
+      ? previous
+      : cornerAt > 0 ? row[cornerAt - 1]!.raw : rowAnchor;
+    if (!currentBecomesCorner) {
+      row.slice(cornerAt).forEach(({ index: removedIndex }) => output.delete(removedIndex));
+    }
+
+    const cornerOrientation: DominoOrientation = "vertical";
+    const cornerGeometry = cornerPlacement(
+      beforeCorner,
+      horizontalDirection,
+      verticalDirection,
+      rowCenterY,
+      width
+    );
+    const corner = rawTile(
+      cornerEntry.raw.tile,
+      cornerGeometry.centerX,
+      cornerGeometry.centerY,
+      cornerOrientation,
+      flowDirection(verticalDirection, indexStep)
+    );
+    output.set(cornerEntry.index, corner);
+
+    if (!currentBecomesCorner) {
+      pending.unshift(...replay, index);
+    }
+    horizontalDirection = horizontalDirection === -1 ? 1 : -1;
+    rowCenterY = cornerGeometry.centerY + verticalDirection * corner.height / 4;
+    rowAnchor = corner;
+    previous = corner;
+    row = [];
   }
+}
+
+function cornerPlacement(
+  beforeCorner: RawTile,
+  horizontalDirection: -1 | 1,
+  verticalDirection: -1 | 1,
+  rowCenterY: number,
+  width: number
+): CornerPlacement {
+  const { width: cornerWidth, height: cornerHeight } = tileDimensions("vertical");
+  const idealCenterX = beforeCorner.centerX +
+    horizontalDirection * (beforeCorner.width / 2 + cornerWidth / 2 + GAP);
+  const centerX = Math.min(
+    width - PADDING - cornerWidth / 2,
+    Math.max(PADDING + cornerWidth / 2, idealCenterX)
+  );
+  return {
+    centerX,
+    centerY: rowCenterY + verticalDirection * cornerHeight / 4,
+    width: cornerWidth,
+    height: cornerHeight,
+    clamped: centerX !== idealCenterX
+  };
+}
+
+function overlapsExcessively(first: RawTile, second: CornerPlacement): boolean {
+  const overlapWidth = Math.max(
+    0,
+    Math.min(first.centerX + first.width / 2, second.centerX + second.width / 2) -
+      Math.max(first.centerX - first.width / 2, second.centerX - second.width / 2)
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(first.centerY + first.height / 2, second.centerY + second.height / 2) -
+      Math.max(first.centerY - first.height / 2, second.centerY - second.height / 2)
+  );
+  return overlapWidth * overlapHeight >=
+    Math.min(first.width * first.height, second.width * second.height) / 4;
+}
+
+function isDouble(tile: PlacedTile): boolean {
+  return tile.tile.left === tile.tile.right;
+}
+
+function branchIndices(length: number, firstIndex: number, step: -1 | 1): number[] {
+  const result: number[] = [];
+  for (let index = firstIndex; index >= 0 && index < length; index += step) {
+    result.push(index);
+  }
+  return result;
 }
 
 function tileOrientation(tile: PlacedTile, travel: DominoOrientation): DominoOrientation {
